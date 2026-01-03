@@ -1,0 +1,29 @@
+{
+  "name": "rizz-royale",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "npm run dev -w @rizz/client",
+    "dev:server": "npm run dev -w @rizz/server",
+    "build": "npm run build -w @rizz/shared && npm run build -w @rizz/server && npm run build -w @rizz/client",
+    "build:client": "npm run build -w @rizz/client",
+    "build:server": "npm run build -w @rizz/server",
+    "test": "npm run test -w @rizz/client && npm run test -w @rizz/server",
+    "test:client": "npm run test -w @rizz/client",
+    "test:server": "npm run test -w @rizz/server",
+    "test:e2e": "npm run test:e2e -w @rizz/client",
+    "lint": "eslint packages/*/src --ext .ts,.tsx",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\""
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.55.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.2"
+  }
+}
