@@ -93,6 +93,8 @@ export interface ServerToClientEvents {
   'girls-update': (data: { girls: GirlPosition[] }) => void;
   // Lobby world events
   'lobby-players-update': (data: { players: PlayerPosition[] }) => void;
+  'lobby-closed': (data: { reason: string }) => void;
+  'lobby-chat': (data: { playerId: string; playerName: string; text: string; color: PlayerColor }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -106,6 +108,7 @@ export interface ClientToServerEvents {
   'select-color': (data: { color: PlayerColor }) => void;
   // Lobby world events
   'lobby-move': (data: { x: number; y: number }) => void;
+  'lobby-chat-send': (data: { text: string }) => void;
 }
 
 // Constants

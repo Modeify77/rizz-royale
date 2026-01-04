@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Application } from 'pixi.js';
 import { GameCanvas } from './GameCanvas';
 import { useLobbyMap, getLobbyMapData } from './LobbyMap';
@@ -7,6 +7,7 @@ import { useRemotePlayers } from './RemotePlayers';
 import { usePlayerMovement } from '../hooks/usePlayerMovement';
 import { useLobbySync } from '../hooks/useLobbySync';
 import { useLobbyStore } from '../../stores/lobbyStore';
+import { useSocket } from '../../hooks/useSocket';
 import type { PlayerColor, Position } from '../types';
 import { RuleBook } from './RuleBook';
 
@@ -24,8 +25,12 @@ const RULEBOOK_ZONE = {
 export function LobbyWorld({ onReady }: LobbyWorldProps) {
   const [app, setApp] = useState<Application | null>(null);
   const [showRuleBook, setShowRuleBook] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
+  const [isChatFocused, setIsChatFocused] = useState(false);
+  const chatInputRef = useRef<HTMLInputElement>(null);
 
   const { currentPlayer } = useLobbyStore();
+  const { sendLobbyChat } = useSocket();
   const playerColor = (currentPlayer?.color as PlayerColor) || 'purple';
   const playerName = currentPlayer?.username || 'Player';
 
@@ -62,9 +67,42 @@ export function LobbyWorld({ onReady }: LobbyWorldProps) {
     app,
     initialPosition,
     mapData,
-    enabled: !!app && !showRuleBook,
+    enabled: !!app && !showRuleBook && !isChatFocused,
     onInteract: handleInteract,
   });
+
+  // Handle chat send
+  const handleSendChat = useCallback(() => {
+    if (chatMessage.trim()) {
+      sendLobbyChat(chatMessage.trim());
+      setChatMessage('');
+    }
+  }, [chatMessage, sendLobbyChat]);
+
+  // Handle Enter key in chat input
+  const handleChatKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && chatMessage.trim()) {
+      handleSendChat();
+    }
+    if (e.key === 'Escape') {
+      chatInputRef.current?.blur();
+    }
+  }, [chatMessage, handleSendChat]);
+
+  // Handle T key to focus chat
+  useEffect(() => {
+    if (!app || showRuleBook || isChatFocused) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        chatInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [app, showRuleBook, isChatFocused]);
 
   // Check proximity to rule book zone
   const isNearRuleBook = useMemo(() => {
@@ -113,9 +151,35 @@ export function LobbyWorld({ onReady }: LobbyWorldProps) {
       <div className="border-2 border-dark-border rounded-lg overflow-hidden shadow-2xl shadow-indigo-500/20">
         <GameCanvas onAppReady={handleAppReady} />
 
+        {/* Chat input */}
+        <div className="absolute bottom-3 left-3 right-3">
+          <div className="flex gap-2">
+            <input
+              ref={chatInputRef}
+              type="text"
+              value={chatMessage}
+              onChange={(e) => setChatMessage(e.target.value.slice(0, 100))}
+              onKeyDown={handleChatKeyDown}
+              onFocus={() => setIsChatFocused(true)}
+              onBlur={() => setIsChatFocused(false)}
+              placeholder={isChatFocused ? "Type a message..." : "Press T to chat"}
+              className="flex-1 bg-black/80 text-white text-sm px-3 py-2 rounded-lg border border-white/20 focus:border-indigo-500/50 focus:outline-none placeholder-white/40"
+              maxLength={100}
+            />
+            {isChatFocused && chatMessage.trim() && (
+              <button
+                onClick={handleSendChat}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                Send
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Rule book prompt */}
-        {isNearRuleBook && !showRuleBook && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/90 px-4 py-3 rounded-lg border border-indigo-500/50">
+        {isNearRuleBook && !showRuleBook && !isChatFocused && (
+          <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-black/90 px-4 py-3 rounded-lg border border-indigo-500/50">
             <p className="text-white text-sm">
               Press <span className="text-indigo-400 font-bold">E</span> to read the Rule Book
             </p>

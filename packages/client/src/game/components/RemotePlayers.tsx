@@ -2,6 +2,10 @@ import { useEffect, useRef } from 'react';
 import { Application, Graphics, Container, Text, TextStyle } from 'pixi.js';
 import type { PlayerPosition } from '@rizz/shared';
 import { PLAYER_COLORS, PLAYER_SIZE, type PlayerColor } from '../types';
+import { useLobbyStore, type LobbyChatMessage } from '../../stores/lobbyStore';
+
+const SPEECH_BUBBLE_DURATION = 4000; // 4 seconds
+const MAX_BUBBLE_WIDTH = 120;
 
 // Map shared PlayerColor type to local PLAYER_COLORS
 function getColorHex(color: string): number {
@@ -11,6 +15,9 @@ function getColorHex(color: string): number {
 interface RemotePlayerSprite {
   container: Container;
   graphics: Graphics;
+  speechBubble: Container;
+  speechBubbleBg: Graphics;
+  speechText: Text;
   lastPosition: { x: number; y: number };
   targetPosition: { x: number; y: number };
 }
@@ -83,12 +90,36 @@ export function useRemotePlayers(
         nameTag.position.set(0, -PLAYER_SIZE / 2 - 5);
         container.addChild(nameTag);
 
+        // Speech bubble (initially hidden)
+        const speechBubble = new Container();
+        speechBubble.visible = false;
+        speechBubble.position.set(0, -PLAYER_SIZE / 2 - 40);
+
+        const speechBubbleBg = new Graphics();
+        speechBubble.addChild(speechBubbleBg);
+
+        const speechStyle = new TextStyle({
+          fontSize: 10,
+          fontFamily: 'Arial',
+          fill: 0x000000,
+          wordWrap: true,
+          wordWrapWidth: MAX_BUBBLE_WIDTH - 12,
+        });
+
+        const speechText = new Text({ text: '', style: speechStyle });
+        speechText.anchor.set(0.5, 0.5);
+        speechBubble.addChild(speechText);
+        container.addChild(speechBubble);
+
         container.position.set(player.x, player.y);
         app.stage.addChild(container);
 
         sprite = {
           container,
           graphics,
+          speechBubble,
+          speechBubbleBg,
+          speechText,
           lastPosition: { x: player.x, y: player.y },
           targetPosition: { x: player.x, y: player.y },
         };
@@ -127,6 +158,87 @@ export function useRemotePlayers(
       app.ticker.remove(interpolate);
     };
   }, [app, players]);
+
+  // Track chat messages for speech bubbles
+  const lobbyChatMessages = useLobbyStore((state) => state.lobbyChatMessages);
+  const lastMessageTimesRef = useRef<Map<string, number>>(new Map());
+  const bubbleTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+  useEffect(() => {
+    const sprites = spritesRef.current;
+
+    // Get the latest message for each player
+    const latestMessagesByPlayer = new Map<string, LobbyChatMessage>();
+    for (const msg of lobbyChatMessages) {
+      const existing = latestMessagesByPlayer.get(msg.playerId);
+      if (!existing || msg.timestamp > existing.timestamp) {
+        latestMessagesByPlayer.set(msg.playerId, msg);
+      }
+    }
+
+    // Update speech bubbles for each player
+    latestMessagesByPlayer.forEach((message, playerId) => {
+      const sprite = sprites.get(playerId);
+      if (!sprite) return;
+
+      const lastTime = lastMessageTimesRef.current.get(playerId);
+      const isNewMessage = lastTime !== message.timestamp;
+
+      if (isNewMessage) {
+        // Update last message time
+        lastMessageTimesRef.current.set(playerId, message.timestamp);
+
+        // Clear existing timeout
+        const existingTimeout = bubbleTimeoutsRef.current.get(playerId);
+        if (existingTimeout) {
+          clearTimeout(existingTimeout);
+        }
+
+        // Truncate message if too long
+        let displayText = message.text;
+        if (displayText.length > 50) {
+          displayText = displayText.substring(0, 47) + '...';
+        }
+
+        // Update speech text
+        sprite.speechText.text = displayText;
+
+        // Redraw bubble background based on text size
+        const textBounds = sprite.speechText.getBounds();
+        const padding = 6;
+        const bubbleWidth = Math.min(MAX_BUBBLE_WIDTH, textBounds.width + padding * 2);
+        const bubbleHeight = textBounds.height + padding * 2;
+
+        sprite.speechBubbleBg.clear();
+        sprite.speechBubbleBg.roundRect(
+          -bubbleWidth / 2,
+          -bubbleHeight / 2,
+          bubbleWidth,
+          bubbleHeight,
+          6
+        );
+        sprite.speechBubbleBg.fill({ color: 0xffffff });
+        sprite.speechBubbleBg.stroke({ width: 1, color: getColorHex(message.color) });
+
+        // Show bubble
+        sprite.speechBubble.visible = true;
+
+        // Set timeout to hide after duration
+        const timeout = setTimeout(() => {
+          sprite.speechBubble.visible = false;
+        }, SPEECH_BUBBLE_DURATION);
+        bubbleTimeoutsRef.current.set(playerId, timeout);
+      }
+    });
+  }, [lobbyChatMessages]);
+
+  // Cleanup timeouts
+  useEffect(() => {
+    return () => {
+      bubbleTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+      bubbleTimeoutsRef.current.clear();
+    };
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {

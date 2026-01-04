@@ -1,5 +1,14 @@
 import { create } from 'zustand';
-import type { Player, Lobby, Girl } from '@rizz/shared';
+import type { Player, Lobby, Girl, PlayerColor } from '@rizz/shared';
+
+export interface LobbyChatMessage {
+  id: string;
+  playerId: string;
+  playerName: string;
+  text: string;
+  color: PlayerColor;
+  timestamp: number;
+}
 
 interface LobbyState {
   // Connection state
@@ -19,6 +28,9 @@ interface LobbyState {
   // Error state
   error: string | null;
 
+  // Lobby chat state
+  lobbyChatMessages: LobbyChatMessage[];
+
   // Actions
   setConnected: (connected: boolean) => void;
   setConnecting: (connecting: boolean) => void;
@@ -32,6 +44,8 @@ interface LobbyState {
   setGirls: (girls: Omit<Girl, 'archetype'>[]) => void;
   setGameActive: (active: boolean) => void;
   setError: (error: string | null) => void;
+  addLobbyChatMessage: (message: LobbyChatMessage) => void;
+  clearLobbyChat: () => void;
   reset: () => void;
 }
 
@@ -45,6 +59,7 @@ const initialState = {
   girls: [],
   isGameActive: false,
   error: null,
+  lobbyChatMessages: [] as LobbyChatMessage[],
 };
 
 export const useLobbyStore = create<LobbyState>((set) => ({
@@ -113,6 +128,13 @@ export const useLobbyStore = create<LobbyState>((set) => ({
   setGameActive: (active) => set({ isGameActive: active }),
 
   setError: (error) => set({ error }),
+
+  addLobbyChatMessage: (message) =>
+    set((state) => ({
+      lobbyChatMessages: [...state.lobbyChatMessages, message].slice(-50), // Keep last 50 messages
+    })),
+
+  clearLobbyChat: () => set({ lobbyChatMessages: [] }),
 
   reset: () => set(initialState),
 }));

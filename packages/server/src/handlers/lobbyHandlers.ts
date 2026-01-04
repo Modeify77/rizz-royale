@@ -193,8 +193,29 @@ export function registerLobbyHandlers(io: GameServer, socket: GameSocket): void 
     }
   });
 
+  // Handle lobby chat
+  socket.on('lobby-chat-send', ({ text }) => {
+    const lobby = LobbyManager.getLobbyByPlayerId(socket.id);
+    if (!lobby || lobby.status !== 'waiting') return;
+
+    const player = lobby.players.find(p => p.id === socket.id);
+    if (!player) return;
+
+    // Broadcast to all players in the lobby
+    io.to(lobby.code).emit('lobby-chat', {
+      playerId: socket.id,
+      playerName: player.username,
+      text: text.slice(0, 100), // Limit message length
+      color: player.color || 'purple',
+    });
+  });
+
   // Handle disconnect
   socket.on('disconnect', () => {
+    const lobby = LobbyManager.getLobbyByPlayerId(socket.id);
+    const wasHost = lobby?.hostId === socket.id;
+    const lobbyCode = lobby?.code;
+
     const result = LobbyManager.leaveLobby(socket.id);
 
     if (result.lobby) {
@@ -204,12 +225,17 @@ export function registerLobbyHandlers(io: GameServer, socket: GameSocket): void 
       cleanupPlayerPosition(socket.id, result.lobby.code);
 
       if (!result.lobbyDeleted) {
-        // Notify remaining players
-        io.to(result.lobby.code).emit('player-left', { playerId: socket.id });
-
-        // If there's a new host, we could emit an event for that too
-        if (result.newHostId) {
-          console.log(`New host assigned in lobby ${result.lobby.code}: ${result.newHostId}`);
+        // If host left, close the lobby for everyone
+        if (wasHost && lobbyCode) {
+          io.to(lobbyCode).emit('lobby-closed', { reason: 'Host left the lobby' });
+          // Clean up all positions for this lobby
+          clearLobbyPositions(lobbyCode);
+          // Delete the lobby
+          LobbyManager.deleteLobby(lobbyCode);
+          console.log(`Lobby ${lobbyCode} closed because host left`);
+        } else {
+          // Regular player left
+          io.to(result.lobby.code).emit('player-left', { playerId: socket.id });
         }
       }
     }

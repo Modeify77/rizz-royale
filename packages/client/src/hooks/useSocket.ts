@@ -85,6 +85,12 @@ export function useSocket() {
       removePlayer(playerId);
     });
 
+    socket.on('lobby-closed', ({ reason }) => {
+      useToastStore.getState().addToast(reason, 'error');
+      reset();
+      // Navigation will be handled by the Lobby component detecting no lobby
+    });
+
     socket.on('player-updated', ({ player }) => {
       useLobbyStore.getState().updatePlayer(player);
     });
@@ -102,6 +108,17 @@ export function useSocket() {
     socket.on('error', ({ message }) => {
       setError(message);
       useToastStore.getState().addToast(message, 'error');
+    });
+
+    socket.on('lobby-chat', ({ playerId, playerName, text, color }) => {
+      useLobbyStore.getState().addLobbyChatMessage({
+        id: `${playerId}-${Date.now()}`,
+        playerId,
+        playerName,
+        text,
+        color,
+        timestamp: Date.now(),
+      });
     });
 
     // Auto-connect
@@ -128,6 +145,8 @@ export function useSocket() {
       socket.off('game-started');
       socket.off('game-won');
       socket.off('player-updated');
+      socket.off('lobby-closed');
+      socket.off('lobby-chat');
       socket.off('error');
     };
   }, [
@@ -176,6 +195,11 @@ export function useSocket() {
       });
   }, [reset, setConnecting, setConnected, setConnectionError]);
 
+  const sendLobbyChat = useCallback((text: string) => {
+    const socket = getSocket();
+    socket.emit('lobby-chat-send', { text });
+  }, []);
+
   const { girls, isGameActive } = useLobbyStore();
 
   return {
@@ -199,5 +223,6 @@ export function useSocket() {
     joinLobby,
     startGame,
     leaveLobby,
+    sendLobbyChat,
   };
 }
