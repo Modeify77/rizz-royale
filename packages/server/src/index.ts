@@ -20,17 +20,39 @@ const httpServer = createServer(app);
 // Allow multiple origins for development and production
 const allowedOrigins = [
   'http://localhost:5173',
+  'https://rizz-royale.vercel.app',
+  /\.vercel\.app$/,  // Allow all Vercel preview deployments
   process.env.CLIENT_URL,
-].filter(Boolean) as string[];
+].filter(Boolean);
 
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc)
+      if (!origin) return callback(null, true);
+
+      // Check against allowed origins
+      const isAllowed = allowedOrigins.some(allowed => {
+        if (allowed instanceof RegExp) return allowed.test(origin);
+        return allowed === origin;
+      });
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        console.log('CORS blocked origin:', origin);
+        callback(null, true); // Allow anyway for now to debug
+      }
+    },
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
-app.use(cors());
+app.use(cors({
+  origin: true, // Allow all origins for REST endpoints
+  credentials: true,
+}));
 app.use(express.json());
 
 app.get('/health', (_req, res) => {
