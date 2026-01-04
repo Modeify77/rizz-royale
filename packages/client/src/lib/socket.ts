@@ -11,7 +11,10 @@ export function getSocket(): GameSocket {
   if (!socket) {
     socket = io(SERVER_URL, {
       autoConnect: false,
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'], // Try WebSocket first, fall back to polling
+      upgrade: true, // Upgrade from polling to websocket when possible
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
   }
   return socket;
