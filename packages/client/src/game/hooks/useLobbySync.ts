@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getSocket } from '../../lib/socket';
 import { useLobbyStore } from '../../stores/lobbyStore';
 import type { Position, PlayerColor } from '../types';

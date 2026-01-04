@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Application } from 'pixi.js';
-import { GameCanvas, GAME_WIDTH, GAME_HEIGHT } from './GameCanvas';
+import { GameCanvas } from './GameCanvas';
 import { useBarMap, getMapData } from './BarMap';
 import { usePlayerSprite } from './PlayerSprite';
 import { useRemotePlayers } from './RemotePlayers';
@@ -88,17 +88,19 @@ export function GameWorld({ playerName, playerColor, onReady, multiplayer = fals
   const getReputation = useGameStore((state) => state.getReputation);
 
   // Proximity detection - which girls are nearby (keep running even when chat open)
-  const { nearbyGirlIds, closestGirl } = useProximity({
+  const proximityResult = useProximity({
     playerPosition: position,
     enabled: !!app,
   });
+  const nearbyGirlIds = proximityResult.nearbyGirlIds;
+  const closestGirl = proximityResult.closestGirl as { id: string; name: string; distance: number } | null;
 
   // Get reputation for closest girl
   const closestGirlRep = closestGirl ? getReputation(closestGirl.id) : 0;
 
   // Check if any nearby girl can be proposed to (rep >= 100)
   const reputations = useGameStore((state) => state.reputations);
-  const proposableGirl = useMemo(() => {
+  const proposableGirl = useMemo((): { id: string; name: string; x: number; y: number } | null => {
     for (const girlId of nearbyGirlIds) {
       const rep = reputations[girlId] ?? 5;
       if (rep >= WIN_REP) {

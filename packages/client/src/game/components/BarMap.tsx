@@ -3,9 +3,7 @@ import { Application, Graphics, Container } from 'pixi.js';
 import type { BarMap as BarMapType } from '../types';
 import barMapData from '../assets/barMap.json';
 
-interface BarMapProps {
-  app: Application;
-}
+// BarMapProps removed - using hook pattern instead
 
 export function useBarMap(app: Application | null) {
   const containerRef = useRef<Container | null>(null);

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Application } from 'pixi.js';
-import type { Position, Direction, Wall, BarMap } from '../types';
+import type { Position, Direction, BarMap } from '../types';
 import { PLAYER_SPEED } from '../types';
 import { applyMovementWithCollision, clampToMap } from '../utils/collision';
 import { useKeyboard } from './useKeyboard';

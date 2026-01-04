@@ -32,3 +32,4 @@ screenshots/
 
 # Misc
 *.tsbuildinfo
+.vercel

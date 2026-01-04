@@ -101,13 +101,14 @@ export function GameTest() {
 
     // Intercept socket emit for send-message
     const originalEmit = socket.emit.bind(socket);
-    socket.emit = function(event: string, ...args: unknown[]) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (socket as any).emit = function(event: string, ...args: unknown[]) {
       if (event === 'send-message') {
         handleSendMessage(args[0] as { girlId: string; text: string });
         return socket; // Don't actually send to server via socket
       }
-      return originalEmit(event, ...args);
-    } as typeof socket.emit;
+      return originalEmit(event as never, ...args as never);
+    };
 
     return () => {
       socket.emit = originalEmit; // Restore original
@@ -120,11 +121,20 @@ export function GameTest() {
     updateGirlPositions(TEST_GIRLS.map(({ id, name, x, y }) => ({ id, name, x, y })));
 
     // Simple local AI simulation
-    const girls = TEST_GIRLS.map(g => ({
+    const girls: Array<{
+      id: string;
+      name: string;
+      x: number;
+      y: number;
+      archetype: Archetype;
+      targetX: number;
+      targetY: number;
+      state: 'idle' | 'walking';
+    }> = TEST_GIRLS.map(g => ({
       ...g,
       targetX: g.x,
       targetY: g.y,
-      state: 'idle' as const,
+      state: 'idle',
     }));
 
     const interval = setInterval(() => {

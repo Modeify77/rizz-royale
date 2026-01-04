@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { getSocket } from '../../lib/socket';
 import { useGameStore } from '../../stores/gameStore';
 import { useLobbyStore } from '../../stores/lobbyStore';

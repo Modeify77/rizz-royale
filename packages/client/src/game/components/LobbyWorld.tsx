@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Application } from 'pixi.js';
-import { GameCanvas, GAME_WIDTH, GAME_HEIGHT } from './GameCanvas';
+import { GameCanvas } from './GameCanvas';
 import { useLobbyMap, getLobbyMapData } from './LobbyMap';
 import { usePlayerSprite } from './PlayerSprite';
 import { useRemotePlayers } from './RemotePlayers';
@@ -25,7 +25,7 @@ export function LobbyWorld({ onReady }: LobbyWorldProps) {
   const [app, setApp] = useState<Application | null>(null);
   const [showRuleBook, setShowRuleBook] = useState(false);
 
-  const { currentPlayer, lobby } = useLobbyStore();
+  const { currentPlayer } = useLobbyStore();
   const playerColor = (currentPlayer?.color as PlayerColor) || 'purple';
   const playerName = currentPlayer?.username || 'Player';
 

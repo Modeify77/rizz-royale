@@ -2,14 +2,6 @@ import { useEffect, useRef } from 'react';
 import { Application, Graphics, Container, Text, TextStyle } from 'pixi.js';
 import { PLAYER_COLORS, PLAYER_SIZE, type PlayerColor, type Position } from '../types';
 
-interface PlayerSpriteProps {
-  app: Application;
-  position: Position;
-  color: PlayerColor;
-  name: string;
-  isLocal?: boolean;
-}
-
 export function usePlayerSprite(
   app: Application | null,
   position: Position,
