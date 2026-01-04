@@ -28,6 +28,7 @@ interface LobbyState {
   setLobbyCode: (code: string | null) => void;
   addPlayer: (player: Player) => void;
   removePlayer: (playerId: string) => void;
+  updatePlayer: (player: Player) => void;
   setGirls: (girls: Omit<Girl, 'archetype'>[]) => void;
   setGameActive: (active: boolean) => void;
   setError: (error: string | null) => void;
@@ -82,6 +83,28 @@ export const useLobbyStore = create<LobbyState>((set) => ({
           ...state.lobby,
           players: state.lobby.players.filter((p) => p.id !== playerId),
         },
+      };
+    }),
+
+  updatePlayer: (player) =>
+    set((state) => {
+      if (!state.lobby) return state;
+
+      // Update in players list
+      const updatedPlayers = state.lobby.players.map((p) =>
+        p.id === player.id ? player : p
+      );
+
+      // Also update currentPlayer if it's the same player
+      const updatedCurrentPlayer =
+        state.currentPlayer?.id === player.id ? player : state.currentPlayer;
+
+      return {
+        lobby: {
+          ...state.lobby,
+          players: updatedPlayers,
+        },
+        currentPlayer: updatedCurrentPlayer,
       };
     }),
 

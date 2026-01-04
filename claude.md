@@ -1,6 +1,7 @@
 # Claude Code Configuration — Rizz Royale
 
-> **📋 See [overview.md](./overview.md) for the complete task breakdown, test specifications, and build order.**
+> **📋 See [docs/v1-build-plan.md](./docs/v1-build-plan.md) for the original build plan.**
+> **📋 See [docs/phase-2-game-world.md](./docs/phase-2-game-world.md) for the 2D game world implementation (current phase).**
 
 ## Project Overview
 

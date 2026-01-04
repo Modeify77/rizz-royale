@@ -364,4 +364,100 @@ Be true to your archetype. A CHALLENGE type might reject even good proposals if 
   }
 }
 
+// Generate batched response for multiple players
+interface BatchedMessageInput {
+  playerName: string;
+  playerId: string;
+  text: string;
+  reputation: number;
+}
+
+interface BatchedResponseResult {
+  response: string;
+  scores: Record<string, number>; // playerId -> score
+}
+
+export async function generateBatchedResponse(
+  girlName: string,
+  archetype: Archetype,
+  messages: BatchedMessageInput[],
+  conversationHistory: Array<{ role: 'player' | 'girl'; text: string }> = []
+): Promise<BatchedResponseResult> {
+  // Calculate average reputation for context
+  const avgRep = messages.reduce((sum, m) => sum + m.reputation, 0) / messages.length;
+
+  const systemPrompt = `${ARCHETYPE_PROMPTS[archetype]}
+
+Your name is ${girlName}. You're at a bar and multiple people are talking to you at once.
+
+${getReputationContext(avgRep)}
+
+IMPORTANT RULES:
+- Respond in 1-2 short sentences maximum
+- You can address one person, some people, or everyone - your choice based on what interests you
+- Stay in character based on your archetype
+- React naturally to what catches your attention
+- Don't be preachy or give life advice
+- Don't mention being an AI or break character
+- Use casual bar conversation tone
+- You may acknowledge multiple people or focus on whoever said something most interesting to you`;
+
+  // Build the batched message
+  const playerMessages = messages
+    .map((m) => `${m.playerName}: "${m.text}"`)
+    .join('\n');
+
+  // Build conversation context
+  const contextMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  for (const msg of conversationHistory.slice(-6)) {
+    contextMessages.push({
+      role: msg.role === 'player' ? 'user' : 'assistant',
+      content: msg.text,
+    });
+  }
+
+  contextMessages.push({
+    role: 'user',
+    content: `Multiple people are talking to you:\n${playerMessages}`,
+  });
+
+  try {
+    const response = await getClient().messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 200,
+      system: systemPrompt,
+      messages: contextMessages,
+    });
+
+    const textContent = response.content.find((c) => c.type === 'text');
+    const responseText = textContent?.text || "Sorry, what was that?";
+
+    // Score each message individually
+    const scores: Record<string, number> = {};
+    await Promise.all(
+      messages.map(async (m) => {
+        const score = await scoreMessage({
+          archetype,
+          message: m.text,
+          reputation: m.reputation,
+        });
+        scores[m.playerId] = score;
+      })
+    );
+
+    return { response: responseText, scores };
+  } catch (error) {
+    console.error('LLM batched response error:', error);
+    // Fallback
+    const scores: Record<string, number> = {};
+    for (const m of messages) {
+      scores[m.playerId] = getRandomFallbackScore();
+    }
+    return {
+      response: getFallbackResponse(archetype),
+      scores,
+    };
+  }
+}
+
 export { ARCHETYPE_PROMPTS };

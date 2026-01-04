@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build -w @rizz/shared && npm run build -w @rizz/server"]
+
+[start]
+cmd = "npm run start -w @rizz/server"

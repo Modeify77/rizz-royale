@@ -1,0 +1,23 @@
+{
+  "width": 800,
+  "height": 600,
+  "wallThickness": 24,
+  "walls": [
+    { "x": 0, "y": 0, "width": 800, "height": 24 },
+    { "x": 0, "y": 576, "width": 800, "height": 24 },
+    { "x": 0, "y": 0, "width": 24, "height": 600 },
+    { "x": 776, "y": 0, "width": 24, "height": 600 }
+  ],
+  "furniture": [
+    { "type": "couch", "x": 100, "y": 100, "width": 120, "height": 50 },
+    { "type": "couch", "x": 580, "y": 100, "width": 120, "height": 50 },
+    { "type": "table", "x": 370, "y": 270, "width": 60, "height": 60 },
+    { "type": "plant", "x": 50, "y": 500, "width": 40, "height": 40 },
+    { "type": "plant", "x": 710, "y": 500, "width": 40, "height": 40 }
+  ],
+  "playerSpawnArea": {
+    "x": 400,
+    "y": 400,
+    "radius": 80
+  }
+}

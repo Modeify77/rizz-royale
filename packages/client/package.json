@@ -12,7 +12,9 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@pixi/react": "^8.0.5",
     "@rizz/shared": "*",
+    "pixi.js": "^8.14.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.6.1",
@@ -21,8 +23,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
-    "@testing-library/react": "^16.0.0",
     "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.0.0",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",

@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { getSocket, connectSocket, disconnectSocket } from '../lib/socket';
 import { useLobbyStore } from '../stores/lobbyStore';
+import { useGameStore } from '../stores/gameStore';
 import { useToastStore } from '../stores/toastStore';
 
 export function useSocket() {
@@ -84,9 +85,18 @@ export function useSocket() {
       removePlayer(playerId);
     });
 
+    socket.on('player-updated', ({ player }) => {
+      useLobbyStore.getState().updatePlayer(player);
+    });
+
     socket.on('game-started', ({ girls }) => {
       setGirls(girls);
       setGameActive(true);
+    });
+
+    socket.on('game-won', ({ winnerId, winnerName, girlName, girlAvatarUrl }) => {
+      useGameStore.getState().setWinner({ winnerId, winnerName, girlName, girlAvatarUrl });
+      useToastStore.getState().addToast(`${winnerName} won with ${girlName}!`, 'info');
     });
 
     socket.on('error', ({ message }) => {
@@ -116,6 +126,8 @@ export function useSocket() {
       socket.off('player-joined');
       socket.off('player-left');
       socket.off('game-started');
+      socket.off('game-won');
+      socket.off('player-updated');
       socket.off('error');
     };
   }, [

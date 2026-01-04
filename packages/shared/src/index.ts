@@ -13,6 +13,23 @@ export interface Player {
   username: string;
   isHost: boolean;
   reputation: Record<string, number>; // girlId -> rep score
+  color?: PlayerColor;
+}
+
+// Game world types
+export type PlayerColor = 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'orange';
+
+export interface Position {
+  x: number;
+  y: number;
+}
+
+export interface PlayerPosition {
+  id: string;
+  x: number;
+  y: number;
+  color: PlayerColor;
+  username: string;
 }
 
 export interface Girl {
@@ -20,6 +37,13 @@ export interface Girl {
   name: string;
   archetype: Archetype; // Hidden from players
   avatarUrl: string;
+}
+
+export interface GirlPosition {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
 }
 
 export interface Lobby {
@@ -46,6 +70,7 @@ export interface ServerToClientEvents {
   'lobby-joined': (data: { lobby: Lobby }) => void;
   'player-joined': (data: { player: Player }) => void;
   'player-left': (data: { playerId: string }) => void;
+  'player-updated': (data: { player: Player }) => void;
   'game-started': (data: { girls: Omit<Girl, 'archetype'>[] }) => void;
   'girl-avatars-ready': (data: { avatars: Record<string, string> }) => void;
   'message-sent': (data: { message: ChatMessage }) => void;
@@ -62,6 +87,12 @@ export interface ServerToClientEvents {
   }) => void;
   'game-won': (data: { winnerId: string; winnerName: string; girlName: string; girlAvatarUrl: string }) => void;
   'error': (data: { message: string }) => void;
+  // Game world events
+  'players-update': (data: { players: PlayerPosition[] }) => void;
+  'player-position': (data: PlayerPosition) => void;
+  'girls-update': (data: { girls: GirlPosition[] }) => void;
+  // Lobby world events
+  'lobby-players-update': (data: { players: PlayerPosition[] }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -70,6 +101,11 @@ export interface ClientToServerEvents {
   'start-game': () => void;
   'send-message': (data: { girlId: string; text: string }) => void;
   'propose': (data: { girlId: string; text: string }) => void;
+  // Game world events
+  'player-move': (data: { x: number; y: number }) => void;
+  'select-color': (data: { color: PlayerColor }) => void;
+  // Lobby world events
+  'lobby-move': (data: { x: number; y: number }) => void;
 }
 
 // Constants
@@ -82,3 +118,7 @@ export const MAX_REP = 100;
 export const WIN_REP = 100;
 export const MESSAGE_COOLDOWN_MS = 5000;
 export const REJECTION_PENALTY = 10;
+
+// Game world constants
+export const POSITION_UPDATE_RATE = 50; // ms between position broadcasts
+export const PLAYER_COLORS: PlayerColor[] = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];

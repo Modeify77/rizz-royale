@@ -2,7 +2,8 @@ import type { Socket, Server } from 'socket.io';
 import type { ServerToClientEvents, ClientToServerEvents, ChatMessage } from '@rizz/shared';
 import { MESSAGE_COOLDOWN_MS, MIN_REP, MAX_REP, WIN_REP, REJECTION_PENALTY } from '@rizz/shared';
 import * as LobbyManager from '../managers/LobbyManager.js';
-import { generateGirlResponse, scoreMessage, evaluateProposal } from '../services/llm.js';
+import { generateBatchedResponse, evaluateProposal } from '../services/llm.js';
+import { messageBatcher, type BatchedMessages } from '../services/MessageBatcher.js';
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -22,7 +23,112 @@ function generateMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+// Store io reference for batcher callback
+let ioRef: GameServer | null = null;
+
+// Initialize batcher callback
+function initBatcher(io: GameServer): void {
+  if (ioRef) return; // Already initialized
+  ioRef = io;
+
+  messageBatcher.setCallback(async (batch: BatchedMessages) => {
+    const { girlId, girlName, archetype, messages } = batch;
+
+    // Find the lobby from first message
+    const firstPlayer = LobbyManager.getPlayer(messages[0].playerId);
+    const lobby = firstPlayer ? LobbyManager.getLobbyByPlayerId(messages[0].playerId) : null;
+
+    if (!lobby) {
+      console.error('[Batcher] Could not find lobby for batch');
+      return;
+    }
+
+    // Show typing indicator
+    io.to(lobby.code).emit('girl-typing', { girlId });
+
+    // Get conversation history
+    const historyKey = getConversationKey(lobby.code, girlId);
+    const history = conversationHistory.get(historyKey) || [];
+
+    try {
+      // Generate batched response
+      const result = await generateBatchedResponse(
+        girlName,
+        archetype,
+        messages.map((m) => ({
+          playerId: m.playerId,
+          playerName: m.playerName,
+          text: m.text,
+          reputation: m.reputation,
+        })),
+        history
+      );
+
+      // Update conversation history with all player messages and girl response
+      for (const m of messages) {
+        history.push({ role: 'player', text: `${m.playerName}: ${m.text}` });
+      }
+      history.push({ role: 'girl', text: result.response });
+
+      // Keep only last 10 entries
+      if (history.length > 10) {
+        history.splice(0, history.length - 10);
+      }
+      conversationHistory.set(historyKey, history);
+
+      // Create girl response message
+      const girlResponse: ChatMessage = {
+        id: generateMessageId(),
+        girlId,
+        senderId: girlId,
+        senderName: girlName,
+        text: result.response,
+        isPlayer: false,
+        timestamp: Date.now(),
+      };
+
+      // Broadcast girl's response to all
+      io.to(lobby.code).emit('girl-response', { message: girlResponse });
+
+      // Send private rep updates to each player who sent a message
+      for (const m of messages) {
+        const player = LobbyManager.getPlayer(m.playerId);
+        if (!player) continue;
+
+        const score = result.scores[m.playerId] || 0;
+        const currentRep = player.reputation[girlId] || 0;
+        const newRep = Math.max(MIN_REP, Math.min(MAX_REP, currentRep + score));
+        player.reputation[girlId] = newRep;
+
+        // Get the socket for this player and send rep update
+        const playerSocket = io.sockets.sockets.get(m.playerId);
+        if (playerSocket) {
+          playerSocket.emit('rep-update', {
+            girlId,
+            newRep,
+            change: score,
+          });
+        }
+
+        console.log(
+          `[BATCH] ${m.playerName} -> ${girlName} [${archetype}]: "${m.text}" | Score: ${score > 0 ? '+' : ''}${score} | Rep: ${newRep}`
+        );
+
+        // Check for win condition
+        if (newRep >= WIN_REP) {
+          console.log(`${m.playerName} can now propose to ${girlName}!`);
+        }
+      }
+    } catch (error) {
+      console.error('[Batcher] Error processing batch:', error);
+    }
+  });
+}
+
 export function registerChatHandlers(io: GameServer, socket: GameSocket): void {
+  // Initialize batcher on first socket connection
+  initBatcher(io);
+
   socket.on('send-message', async ({ girlId, text }) => {
     const lobby = LobbyManager.getLobbyByPlayerId(socket.id);
     const player = LobbyManager.getPlayer(socket.id);
@@ -59,10 +165,6 @@ export function registerChatHandlers(io: GameServer, socket: GameSocket): void {
     // Get current reputation
     const currentRep = player.reputation[girlId] || 0;
 
-    // Get conversation history for this girl
-    const historyKey = getConversationKey(lobby.code, girlId);
-    const history = conversationHistory.get(historyKey) || [];
-
     // Create player message
     const playerMessage: ChatMessage = {
       id: generateMessageId(),
@@ -77,71 +179,24 @@ export function registerChatHandlers(io: GameServer, socket: GameSocket): void {
     // Immediately broadcast player's message to all players
     io.to(lobby.code).emit('message-sent', { message: playerMessage });
 
-    // Show typing indicator
-    io.to(lobby.code).emit('girl-typing', { girlId });
-
-    try {
-      // Generate girl's response using LLM (runs in background while typing shows)
-      const [responseText, score] = await Promise.all([
-        generateGirlResponse({
-          girlName: girl.name,
-          archetype: girl.archetype,
-          playerName: player.username,
-          reputation: currentRep,
-          message: text,
-          conversationHistory: history,
-        }),
-        scoreMessage({
-          archetype: girl.archetype,
-          message: text,
-          reputation: currentRep,
-        }),
-      ]);
-
-      // Update conversation history
-      history.push({ role: 'player', text });
-      history.push({ role: 'girl', text: responseText });
-      // Keep only last 10 messages
-      if (history.length > 10) {
-        history.splice(0, history.length - 10);
+    // Add message to batcher - it will be processed after 5 seconds
+    messageBatcher.addMessage(
+      lobby.code,
+      girlId,
+      girl.name,
+      girl.archetype,
+      {
+        playerId: socket.id,
+        playerName: player.username,
+        text,
+        timestamp: now,
+        reputation: currentRep,
       }
-      conversationHistory.set(historyKey, history);
+    );
 
-      const girlResponse: ChatMessage = {
-        id: generateMessageId(),
-        girlId,
-        senderId: girlId,
-        senderName: girl.name,
-        text: responseText,
-        isPlayer: false,
-        timestamp: Date.now(),
-      };
-
-      // Broadcast girl's response
-      io.to(lobby.code).emit('girl-response', { message: girlResponse });
-
-      // Calculate new reputation
-      const newRep = Math.max(MIN_REP, Math.min(MAX_REP, currentRep + score));
-      player.reputation[girlId] = newRep;
-
-      // Send private rep update only to the player who sent the message
-      socket.emit('rep-update', {
-        girlId,
-        newRep,
-        change: score,
-      });
-
-      console.log(
-        `${player.username} -> ${girl.name} [${girl.archetype}]: "${text}" | Score: ${score > 0 ? '+' : ''}${score} | Rep: ${newRep}`
-      );
-
-      // Check for win condition
-      if (newRep >= WIN_REP) {
-        console.log(`${player.username} can now propose to ${girl.name}!`);
-      }
-    } catch (error) {
-      console.error('Error processing message:', error);
-      socket.emit('error', { message: 'Failed to process message. Try again.' });
+    // Show typing indicator if this is the first message in the batch
+    if (messageBatcher.getQueuedCount(lobby.code, girlId) === 1) {
+      io.to(lobby.code).emit('girl-typing', { girlId });
     }
   });
 
@@ -263,4 +318,6 @@ export function cleanupLobbyHistory(lobbyCode: string): void {
       conversationHistory.delete(key);
     }
   }
+  // Also clean up message batcher
+  messageBatcher.cleanup(lobbyCode);
 }
