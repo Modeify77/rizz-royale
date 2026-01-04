@@ -1,5 +1,6 @@
 {
-  "buildCommand": "cd ../.. && npm run build:client",
+  "installCommand": "cd ../.. && npm install",
+  "buildCommand": "cd ../.. && npm run build -w @rizz/shared && npm run build -w @rizz/client",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
